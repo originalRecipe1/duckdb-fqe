@@ -196,6 +196,6 @@ data class ColumnMetadata(
 @JsonClass(generateAdapter = true)
 data class QueryStatistics(
     val elapsed: Double,
-    @Json(name = "rows_read") val rowsRead: Long,
-    @Json(name = "bytes_read") val bytesRead: Long
+    @field:Json(name = "rows_read") val rowsRead: Long,
+    @field:Json(name = "bytes_read") val bytesRead: Long
 )

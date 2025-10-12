@@ -141,14 +141,15 @@ class DuckDBFQEResultSet(
         }
     }
 
+    @Deprecated("Use getBigDecimal(int) instead")
     override fun getBigDecimal(columnIndex: Int, scale: Int): BigDecimal? {
         checkClosed()
         val value = getValue(columnIndex)
         wasNull = value == null
         return when (value) {
             null -> null
-            is Number -> BigDecimal.valueOf(value.toDouble()).setScale(scale, BigDecimal.ROUND_HALF_UP)
-            is String -> value.toBigDecimalOrNull()?.setScale(scale, BigDecimal.ROUND_HALF_UP)
+            is Number -> BigDecimal.valueOf(value.toDouble()).setScale(scale, java.math.RoundingMode.HALF_UP)
+            is String -> value.toBigDecimalOrNull()?.setScale(scale, java.math.RoundingMode.HALF_UP)
             else -> null
         }
     }
@@ -241,6 +242,8 @@ class DuckDBFQEResultSet(
     override fun getLong(columnLabel: String?): Long = getLong(findColumn(columnLabel))
     override fun getFloat(columnLabel: String?): Float = getFloat(findColumn(columnLabel))
     override fun getDouble(columnLabel: String?): Double = getDouble(findColumn(columnLabel))
+    @Deprecated("Use getBigDecimal(String) instead")
+    @Suppress("DEPRECATION")
     override fun getBigDecimal(columnLabel: String?, scale: Int): BigDecimal? = getBigDecimal(findColumn(columnLabel), scale)
     override fun getBigDecimal(columnLabel: String?): BigDecimal? = getBigDecimal(findColumn(columnLabel))
     override fun getBytes(columnLabel: String?): ByteArray? = getBytes(findColumn(columnLabel))
@@ -393,9 +396,11 @@ class DuckDBFQEResultSet(
 
     // Unsupported operations
     override fun getAsciiStream(columnIndex: Int): InputStream? = throw SQLFeatureNotSupportedException()
+    @Deprecated("Use getCharacterStream instead")
     override fun getUnicodeStream(columnIndex: Int): InputStream? = throw SQLFeatureNotSupportedException()
     override fun getBinaryStream(columnIndex: Int): InputStream? = throw SQLFeatureNotSupportedException()
     override fun getAsciiStream(columnLabel: String?): InputStream? = throw SQLFeatureNotSupportedException()
+    @Deprecated("Use getCharacterStream instead")
     override fun getUnicodeStream(columnLabel: String?): InputStream? = throw SQLFeatureNotSupportedException()
     override fun getBinaryStream(columnLabel: String?): InputStream? = throw SQLFeatureNotSupportedException()
     override fun getCharacterStream(columnIndex: Int): Reader? = throw SQLFeatureNotSupportedException()

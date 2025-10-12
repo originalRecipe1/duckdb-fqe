@@ -285,8 +285,48 @@ docker-compose up -d
 
 ### Build
 
+#### Standard Build
+
 ```bash
 ./gradlew build
+```
+
+This creates the standard JAR in `app/build/libs/`.
+
+#### Fat JAR (All Dependencies Included)
+
+To create a single JAR file with all dependencies bundled (recommended for distribution):
+
+```bash
+./gradlew fatJar
+```
+
+This creates `app/build/libs/duckdb-fqe-jdbc-1.0.0-all.jar` with all dependencies included.
+
+**Using the Fat JAR in Your Project:**
+
+```kotlin
+// Option 1: File dependency (simplest)
+dependencies {
+    implementation(files("/path/to/duckdb-fqe-jdbc-1.0.0-all.jar"))
+}
+
+// Option 2: Local Maven repository
+// First, run: ./gradlew publishToMavenLocal
+repositories {
+    mavenLocal()
+}
+dependencies {
+    implementation("com.duckdb.fqe:jdbc-driver:1.0.0")
+}
+
+// Option 3: Composite build (best for development)
+// In your settings.gradle.kts:
+includeBuild("/path/to/duckdb-fqe/driver")
+// Then in build.gradle.kts:
+dependencies {
+    implementation("com.duckdb.fqe:jdbc-driver:1.0.0")
+}
 ```
 
 ### Run Demo

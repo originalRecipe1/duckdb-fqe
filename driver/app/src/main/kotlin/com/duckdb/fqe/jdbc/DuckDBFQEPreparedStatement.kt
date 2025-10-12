@@ -145,6 +145,7 @@ class DuckDBFQEPreparedStatement(
 
     // Unsupported operations
     override fun setAsciiStream(parameterIndex: Int, x: InputStream?, length: Int) = throw SQLFeatureNotSupportedException()
+    @Deprecated("Use setCharacterStream instead")
     override fun setUnicodeStream(parameterIndex: Int, x: InputStream?, length: Int) = throw SQLFeatureNotSupportedException()
     override fun setBinaryStream(parameterIndex: Int, x: InputStream?, length: Int) = throw SQLFeatureNotSupportedException()
     override fun setCharacterStream(parameterIndex: Int, reader: Reader?, length: Int) = throw SQLFeatureNotSupportedException()

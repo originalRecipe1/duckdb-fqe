@@ -137,17 +137,17 @@ with DuckDBFQEClient() as client:
                     │ HTTP
 ┌─────────────────────────────────────────┐
 │            DuckDB FQE                   │ ← Federated Query Engine
-│     (HTTP Server + SQL Engine)         │
-│   • Query parsing & optimization       │
-│   • Cross-database joins               │
-│   • Result aggregation                 │
+│     (HTTP Server + SQL Engine)          │
+│   • Query parsing & optimization        │
+│   • Cross-database joins                │
+│   • Result aggregation                  │
 └─────────────────────────────────────────┘
          │              │              │
-    ┌────▼───┐    ┌─────▼─────┐   ┌────▼─────┐
-    │PostgreSQL    │   MySQL   │   │ MariaDB  │ ← Your data sources
-    │   Port:5432  │ Port:3306 │   │Port:3307 │
-    │   150k rows  │ 150k rows │   │150k rows │
-    └────────────┘ └───────────┘   └──────────┘
+    ┌────▼────┐   ┌─────▼─────┐   ┌────▼─────┐
+    │postgres │   │   MySQL   │   │ MariaDB  │ ← Your data sources
+    │Port:5432│   │ Port:3306 │   │Port:3307 │
+    │150k rows│   │ 150k rows │   │150k rows │
+    └─────────┘   └───────────┘   └──────────┘
 ```
 
 ### How It Works
