@@ -86,20 +86,52 @@ tasks.register<Test>("integrationTest") {
     // Fail fast on first test failure
     failFast = false
 
-    // Show only test results - no logs or stack traces
+    // Show detailed test results
     testLogging {
-        events("passed", "skipped", "failed")
-        showStandardStreams = false
-        showExceptions = false
-        showCauses = false
-        showStackTraces = false
+        events("passed", "skipped", "failed", "standardOut", "standardError")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showStandardStreams = true
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
     }
 
+    // Print test results after each test
+    afterTest(KotlinClosure2<TestDescriptor, TestResult, Unit>({ desc, result ->
+        val status = when (result.resultType) {
+            TestResult.ResultType.SUCCESS -> "✅ PASSED"
+            TestResult.ResultType.FAILURE -> "❌ FAILED"
+            TestResult.ResultType.SKIPPED -> "⏭️  SKIPPED"
+        }
+        println("  $status: ${desc.name} (${result.endTime - result.startTime}ms)")
+    }))
+
     doFirst {
+        println("\n" + "=".repeat(80))
         println("🚀 Running integration tests against DuckDB FQE server...")
         println("📋 Make sure DuckDB FQE and test databases are running:")
         println("   docker-compose up -d")
+        println("=".repeat(80) + "\n")
     }
+
+    addTestListener(object : TestListener {
+        override fun beforeSuite(suite: TestDescriptor) {}
+        override fun beforeTest(testDescriptor: TestDescriptor) {}
+        override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {}
+        override fun afterSuite(suite: TestDescriptor, result: TestResult) {
+            if (suite.parent == null) { // Only print for the root suite
+                println("\n" + "=".repeat(80))
+                println("📊 Integration Test Summary")
+                println("=".repeat(80))
+                println("Total tests: ${result.testCount}")
+                println("✅ Passed: ${result.successfulTestCount}")
+                println("❌ Failed: ${result.failedTestCount}")
+                println("⏭️  Skipped: ${result.skippedTestCount}")
+                println("⏱️  Duration: ${(result.endTime - result.startTime) / 1000.0}s")
+                println("=".repeat(80) + "\n")
+            }
+        }
+    })
 }
 
 // Add integration tests to check task

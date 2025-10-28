@@ -14,5 +14,5 @@ EXPOSE 8080
 # Set environment variable to keep HTTP server in foreground
 ENV DUCKDB_HTTPSERVER_FOREGROUND=1
 
-# Run DuckDB with initialization script and interactive mode
-CMD ["duckdb", "-interactive", "-init", "/app/init.sql"]
+# Run DuckDB with persistent database and initialization script
+CMD ["duckdb", "/app/data/fqe.db", "-interactive", "-init", "/app/init.sql"]

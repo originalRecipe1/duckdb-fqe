@@ -13,8 +13,8 @@ This project implements a **Federated Query Engine** that allows you to:
 **Example**: Join customers from PostgreSQL with orders from MySQL in a single query:
 ```sql
 SELECT p.c_name, m.o_orderkey, m.o_totalprice
-FROM postgres_db.public.customer p
-JOIN mysql_db.db1.orders m ON p.c_custkey = m.o_custkey
+FROM postgres.public.customer p
+JOIN mysql.db1.orders m ON p.c_custkey = m.o_custkey
 LIMIT 10;
 ```
 
@@ -34,19 +34,17 @@ docker-compose up -d
 ```
 
 ### 2. Access the Web Interface
-Open http://localhost:8080 in your browser
+Open http://localhost:8082 in your browser
 
-### 3. Attach Your Databases
-In the web interface, run these commands to connect to databases:
+### 3. Databases Auto-Attach on Startup
+The databases are automatically attached when the container starts:
+- `postgres` - PostgreSQL database
+- `mysql` - MySQL database
+- `mariadb` - MariaDB database
+
+You can verify with:
 ```sql
--- Load extensions
-INSTALL postgres; INSTALL mysql;
-LOAD postgres; LOAD mysql;
-
--- Attach your databases
-ATTACH 'host=postgres port=5432 dbname=db1 user=postgres password=123456' AS postgres_db (TYPE postgres);
-ATTACH 'host=mysql port=3306 database=db1 user=mysql password=123456' AS mysql_db (TYPE mysql);
-ATTACH 'host=mariadb port=3306 database=db1 user=mariadb password=123456' AS mariadb_db (TYPE mysql);
+SHOW DATABASES;
 ```
 
 ### 4. Query Across Databases
@@ -55,14 +53,16 @@ ATTACH 'host=mariadb port=3306 database=db1 user=mariadb password=123456' AS mar
 SHOW DATABASES;
 
 -- Count customers in each database
-SELECT 'PostgreSQL' as db, COUNT(*) FROM postgres_db.public.customer
+SELECT 'PostgreSQL' as db, COUNT(*) FROM postgres.public.customer
 UNION ALL
-SELECT 'MySQL' as db, COUNT(*) FROM mysql_db.db1.customer;
+SELECT 'MySQL' as db, COUNT(*) FROM mysql.db1.customer;
 
 -- Cross-database join
-SELECT p.c_name, m.c_name
-FROM postgres_db.public.customer p
-JOIN mysql_db.db1.customer m ON p.c_custkey = m.c_custkey
+SELECT
+    CONCAT(p.c_first_name, ' ', p.c_last_name) as postgres_customer,
+    CONCAT(m.c_first_name, ' ', m.c_last_name) as mysql_customer
+FROM postgres.public.customer p
+JOIN mysql.db1.customer m ON p.c_customer_sk = m.c_customer_sk
 LIMIT 5;
 ```
 
@@ -83,14 +83,21 @@ Expected output: **All 5 tests should pass** ✅
 
 ### For Your Own Databases
 
-1. **Update connection details** in your queries or create a config file:
+1. **Update connection details** in `init.sql`:
 ```sql
+-- Edit /app/init.sql in the container or update the local init.sql file
 ATTACH 'host=your-postgres-host port=5432 dbname=yourdb user=youruser password=yourpass' AS your_postgres (TYPE postgres);
 ATTACH 'host=your-mysql-host port=3306 database=yourdb user=youruser password=yourpass' AS your_mysql (TYPE mysql);
 ```
 
-2. **Network access**: Ensure DuckDB container can reach your databases
-3. **Credentials**: Use environment variables or secrets management for production
+2. **Rebuild and restart** the container for changes to take effect:
+```bash
+docker-compose down -v
+docker-compose up -d --build
+```
+
+3. **Network access**: Ensure DuckDB container can reach your databases
+4. **Credentials**: Use environment variables or secrets management for production
 
 ### Supported Databases
 - ✅ PostgreSQL (any version)
@@ -103,27 +110,49 @@ ATTACH 'host=your-mysql-host port=3306 database=yourdb user=youruser password=yo
 ### HTTP API
 ```bash
 # Execute query via HTTP
-curl -X POST "http://localhost:8080/?default_format=JSONCompact" \
+curl -X POST "http://localhost:8082/?default_format=JSONCompact" \
   -H "Content-Type: text/plain" \
-  -d "SELECT COUNT(*) FROM postgres_db.public.customer"
+  -d "SELECT COUNT(*) FROM postgres.public.customer"
 ```
 
 ### Python Client
 ```python
-from duckdb_client import DuckDBFQEClient
+import requests
 
-with DuckDBFQEClient() as client:
-    # Execute federated query
-    result = client.execute_query("""
-        SELECT db_name, COUNT(*) as customers
-        FROM (
-            SELECT 'PostgreSQL' as db_name, c_custkey FROM postgres_db.public.customer
-            UNION ALL
-            SELECT 'MySQL' as db_name, c_custkey FROM mysql_db.db1.customer
-        ) t
-        GROUP BY db_name
-    """)
-    print(result)
+def execute_query(query):
+    response = requests.post(
+        "http://localhost:8082/?default_format=JSONCompact",
+        data=query,
+        headers={"Content-Type": "text/plain"}
+    )
+    return response.json()
+
+# Execute federated query
+result = execute_query("""
+    SELECT db_name, COUNT(*) as customers
+    FROM (
+        SELECT 'PostgreSQL' as db_name, c_customer_sk FROM postgres.public.customer
+        UNION ALL
+        SELECT 'MySQL' as db_name, c_customer_sk FROM mysql.db1.customer
+    ) t
+    GROUP BY db_name
+""")
+print(result)
+```
+
+### JDBC Connection
+You can also connect via JDBC using the DuckDB JDBC driver:
+```
+jdbc:duckdb:http://localhost:8082
+```
+
+Example Java code:
+```java
+import java.sql.*;
+
+Connection conn = DriverManager.getConnection("jdbc:duckdb:http://localhost:8082");
+Statement stmt = conn.createStatement();
+ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM postgres.public.customer");
 ```
 
 ## Architecture & Stack
@@ -167,7 +196,7 @@ with DuckDBFQEClient() as client:
 - **HTTP Server Extension**: Provides REST API access to DuckDB
 - **Database Extensions**: PostgreSQL, MySQL connectivity
 - **Docker Environment**: Containerized deployment with networking
-- **Test Databases**: TPC-H benchmark data for demonstration
+- **Test Databases**: TPC-DS benchmark data for demonstration
 
 ### Performance Benefits
 
@@ -194,4 +223,4 @@ with DuckDBFQEClient() as client:
 
 ---
 
-**Built with**: DuckDB 1.3.2, Docker, Python | **TPC-H Test Data**: 450,000 total records across 3 databases
+**Built with**: DuckDB 1.3.2, Docker, Python | **TPC-DS Test Data**: 300,000 total records across 3 databases (100k per database)

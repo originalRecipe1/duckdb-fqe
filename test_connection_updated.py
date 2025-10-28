@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Updated test script for DuckDB Federated Query Engine
-Tests HTTP API connectivity with actual TPC-H data setup
+Tests HTTP API connectivity with actual TPC-DS data setup
 """
 
 import requests
@@ -10,7 +10,7 @@ import time
 import sys
 
 class DuckDBFQETester:
-    def __init__(self, base_url="http://localhost:8080"):
+    def __init__(self, base_url="http://localhost:8082"):
         self.base_url = base_url
         self.session = requests.Session()
 
@@ -56,63 +56,27 @@ class DuckDBFQETester:
             return None
 
     def setup_databases(self):
-        """Attach all required databases"""
-        print("\n=== Setting up Database Connections ===")
+        """Check that databases are attached (they should auto-attach on startup)"""
+        print("\n=== Checking Database Connections ===")
 
-        # Install and load extensions
-        setup_query = """
-        INSTALL postgres;
-        INSTALL mysql;
-        LOAD postgres;
-        LOAD mysql;
-        """
-
-        result = self.execute_query(setup_query)
-        if not result:
-            print("✗ Failed to load extensions")
-            return False
-        print("✓ Extensions loaded")
-
-        # Check current databases first
+        # Check current databases
         current_dbs = self.execute_query("SHOW DATABASES")
         existing_dbs = []
         if current_dbs and 'data' in current_dbs:
             existing_dbs = [row[0] for row in current_dbs['data']]
 
-        # Attach PostgreSQL (if not already attached)
-        if 'postgres_db' not in existing_dbs:
-            postgres_query = "ATTACH 'host=postgres port=5432 dbname=db1 user=postgres password=123456' AS postgres_db (TYPE postgres);"
-            result = self.execute_query(postgres_query)
-            if not result:
-                print("✗ Failed to attach PostgreSQL")
-                return False
-            print("✓ PostgreSQL attached")
-        else:
-            print("✓ PostgreSQL already attached")
+        # Verify required databases are attached
+        required_dbs = ['postgres', 'mysql', 'mariadb']
+        attached = [db for db in required_dbs if db in existing_dbs]
 
-        # Attach MySQL (if not already attached)
-        if 'mysql_db' not in existing_dbs:
-            mysql_query = "ATTACH 'host=mysql port=3306 database=db1 user=mysql password=123456' AS mysql_db (TYPE mysql);"
-            result = self.execute_query(mysql_query)
-            if not result:
-                print("✗ Failed to attach MySQL")
-                return False
-            print("✓ MySQL attached")
+        if len(attached) == len(required_dbs):
+            print(f"✓ All databases attached: {attached}")
+            return True
         else:
-            print("✓ MySQL already attached")
-
-        # Attach MariaDB (if not already attached)
-        if 'mariadb_db' not in existing_dbs:
-            mariadb_query = "ATTACH 'host=mariadb port=3306 database=db1 user=mariadb password=123456' AS mariadb_db (TYPE mysql);"
-            result = self.execute_query(mariadb_query)
-            if not result:
-                print("✗ Failed to attach MariaDB")
-                return False
-            print("✓ MariaDB attached")
-        else:
-            print("✓ MariaDB already attached")
-
-        return True
+            missing = [db for db in required_dbs if db not in existing_dbs]
+            print(f"✗ Missing databases: {missing}")
+            print(f"  Found: {existing_dbs}")
+            return False
 
     def test_basic_connectivity(self):
         """Test basic DuckDB connectivity"""
@@ -138,7 +102,7 @@ class DuckDBFQETester:
             print(f"Available databases: {databases}")
 
             # Check if our databases are attached
-            expected_dbs = ['postgres_db', 'mysql_db', 'mariadb_db']
+            expected_dbs = ['postgres', 'mysql', 'mariadb']
             attached_dbs = [db for db in expected_dbs if db in databases]
             print(f"✓ Federated databases attached: {attached_dbs}")
             return len(attached_dbs) >= 1
@@ -151,9 +115,9 @@ class DuckDBFQETester:
         print("\n=== Testing Database Table Counts ===")
 
         databases = [
-            ('postgres_db', 'public'),
-            ('mysql_db', 'db1'),
-            ('mariadb_db', 'db1')
+            ('postgres', 'public'),
+            ('mysql', 'db1'),
+            ('mariadb', 'db1')
         ]
 
         success_count = 0
@@ -176,16 +140,16 @@ class DuckDBFQETester:
         """Test cross-database federated join"""
         print("\n=== Testing Cross-Database Join ===")
 
-        # Join customers from PostgreSQL with customers from MySQL
+        # Join customers from PostgreSQL with customers from MySQL (TPC-DS schema)
         query = """
         SELECT
-            p.c_name as postgres_customer,
-            m.c_name as mysql_customer,
-            p.c_custkey
-        FROM postgres_db.public.customer p
-        JOIN mysql_db.db1.customer m ON p.c_custkey = m.c_custkey
-        WHERE p.c_custkey <= 5
-        ORDER BY p.c_custkey
+            CONCAT(p.c_first_name, ' ', p.c_last_name) as postgres_customer,
+            CONCAT(m.c_first_name, ' ', m.c_last_name) as mysql_customer,
+            p.c_customer_sk
+        FROM postgres.public.customer p
+        JOIN mysql.db1.customer m ON p.c_customer_sk = m.c_customer_sk
+        WHERE p.c_customer_sk <= 5
+        ORDER BY p.c_customer_sk
         LIMIT 3
         """
 
@@ -204,32 +168,33 @@ class DuckDBFQETester:
         """Test aggregation across multiple databases"""
         print("\n=== Testing Multi-Database Aggregation ===")
 
+        # TPC-DS schema uses c_birth_year instead of c_acctbal
         query = """
         SELECT
             'PostgreSQL' as database_type,
             COUNT(*) as customer_count,
-            AVG(c_acctbal) as avg_balance
-        FROM postgres_db.public.customer
+            AVG(c_birth_year) as avg_birth_year
+        FROM postgres.public.customer
         UNION ALL
         SELECT
             'MySQL' as database_type,
             COUNT(*) as customer_count,
-            AVG(c_acctbal) as avg_balance
-        FROM mysql_db.db1.customer
+            AVG(c_birth_year) as avg_birth_year
+        FROM mysql.db1.customer
         UNION ALL
         SELECT
             'MariaDB' as database_type,
             COUNT(*) as customer_count,
-            AVG(c_acctbal) as avg_balance
-        FROM mariadb_db.db1.customer
+            AVG(c_birth_year) as avg_birth_year
+        FROM mariadb.db1.customer
         """
 
         result = self.execute_query(query)
         if result and 'data' in result and len(result['data']) >= 1:
             print("✓ Multi-database aggregation successful")
             for row in result['data']:
-                db_type, count, avg_bal = row
-                print(f"  {db_type}: {count:,} customers, avg balance: ${avg_bal:.2f}")
+                db_type, count, avg_year = row
+                print(f"  {db_type}: {count:,} customers, avg birth year: {avg_year:.0f}")
             return True
         else:
             print("✗ Multi-database aggregation failed")
